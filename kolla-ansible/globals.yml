@@ -16,7 +16,7 @@ network_interface: "br-ex"
 
 # Neutron 외부 (Provider/FIP) 네트워크 인터페이스
 # 호스트 Netplan에서 br-ex를 OVS 타입으로 생성했으므로, 다시 물리 포트명을 지정합니다.
-neutron_external_interface: "enp5s0f1"
+neutron_external_interface: "{{ 'enp5s0f1' if inventory_hostname == '172.21.33.67' else 'enp6s0f0' }}"
 
 # ── HAProxy / Keepalived ───────────────────────────────────────────────────────
 # OpenStack VIP(100)를 관리하고 부여하기 위해 HAProxy/Keepalived 활성화
@@ -31,7 +31,8 @@ nova_compute_virt_type: "kvm"
 enable_nova_ssh: "yes"
 
 # --- Neutron (Networking) ----------------------------------------------------
-enable_neutron_provider_networks: "yes"
+enable_neutron_provider_networks: "no"
+neutron_global_physnet_mtu: 1500
 
 # --- Service Enablement ------------------------------------------------------
 enable_glance: "yes"       # 이미지 서비스
@@ -44,6 +45,7 @@ enable_cinder: "yes"       # 블록 스토리지 (sdb 2.7TB LVM 사용)
 # --- Cinder LVM Settings -----------------------------------------------------
 # 01_deploy_aio.sh에서 sdb에 LVM VG 'cinder-volumes' 자동 생성
 enable_cinder_backend_lvm: "yes"
+enable_iscsid: "yes"
 cinder_volume_group: "cinder-volumes"
 
 # --- Database Settings (AIO Optimized) ---------------------------------------

@@ -63,120 +63,580 @@ log_success "SSH 접속 확인 완료"
 log_info "상세 multinode 인벤토리 생성 중 (프록시 누락 완벽 차단)..."
 cat > "${SCRIPT_DIR}/multinode" << EOF
 [control]
-${CONTROL_IP}  ansible_user=${USER_NAME} ansible_become=true ansible_python_interpreter=${VENV_DIR}/bin/python
+${CONTROL_IP}  ansible_user=${USER_NAME} ansible_become=true
 
 [network]
-${CONTROL_IP}  ansible_user=${USER_NAME} ansible_become=true ansible_python_interpreter=${VENV_DIR}/bin/python
+${CONTROL_IP}  ansible_user=${USER_NAME} ansible_become=true
 
 [compute]
-${COMPUTE_IP}  ansible_user=${USER_NAME} ansible_become=true
+# dev-1 (Control Node)도 Compute 역할을 수행합니다.
+${CONTROL_IP}  ansible_user=${USER_NAME} ansible_become=true cinder_backend_lvm=yes iscsi_protocol=iscsi
+# dev-2 (Compute Node)
+${COMPUTE_IP}  ansible_user=${USER_NAME} ansible_become=true cinder_backend_lvm=yes iscsi_protocol=iscsi
 
 [monitoring]
-${CONTROL_IP}  ansible_user=${USER_NAME} ansible_become=true ansible_python_interpreter=${VENV_DIR}/bin/python
+${CONTROL_IP}  ansible_user=${USER_NAME} ansible_become=true
 
 [storage]
-${CONTROL_IP}  ansible_user=${USER_NAME} ansible_become=true ansible_python_interpreter=${VENV_DIR}/bin/python
+${CONTROL_IP}  ansible_user=${USER_NAME} ansible_become=true
+${COMPUTE_IP}  ansible_user=${USER_NAME} ansible_become=true
 
 [deployment]
-localhost  ansible_connection=local ansible_python_interpreter=${VENV_DIR}/bin/python
+localhost  ansible_connection=local
 
-# --- Kolla 모든 필수 세부 그룹 매핑 ---
+# ==============================================================================
+# Kolla-Ansible 공식 기본 템플릿의 그룹 매핑 구조 (수정 금지)
+# 이 아래의 [xxx:children] 그룹들은 지우거나 임의로 하드코딩하지 마세요.
+# Kolla가 알아서 필요한 에이전트(cinder-volume, iscsid, ovn-controller 등)를 
+# 위에서 정의한 5개 핵심 물리 노드 그룹에 적절히 배포합니다.
+# ==============================================================================
+[baremetal:children]
+control
+network
+compute
+storage
+monitoring
+
+[tls-backend:children]
+control
+network
+
+[common:children]
+control
+network
+compute
+storage
+monitoring
+
+[collectd:children]
+compute
+
+[grafana:children]
+monitoring
+
+[etcd:children]
+control
+
+[influxdb:children]
+monitoring
+
+[prometheus:children]
+monitoring
+
+[telegraf:children]
+compute
+control
+monitoring
+network
+storage
+
+[hacluster:children]
+control
+
+[hacluster-remote:children]
+compute
+
+[loadbalancer:children]
+network
+
 [mariadb:children]
 control
+
 [rabbitmq:children]
 control
+
 [keystone:children]
 control
 
 [glance:children]
 control
-[glance-api:children]
-glance
 
 [nova:children]
 control
-[nova-api:children]
-nova
-[nova-conductor:children]
-nova
-[nova-scheduler:children]
-nova
-[nova-novncproxy:children]
-nova
-[nova-spicehtml5proxy:children]
-nova
-[nova-serialproxy:children]
-nova
 
-[placement:children]
-control
-[placement-api:children]
-placement
-
-# --- Neutron All Subgroups ---
 [neutron:children]
-control
-[neutron-server:children]
-neutron
-[neutron-agents:children]
-neutron
-[neutron-dhcp-agent:children]
-neutron-agents
-[neutron-l3-agent:children]
-neutron-agents
-[neutron-metadata-agent:children]
-neutron-agents
-[neutron-ovn-metadata-agent:children]
-neutron-agents
-[neutron-bgp-dragent:children]
-neutron-agents
-[neutron-infoblox-ipam-agent:children]
-neutron-agents
-[neutron-metering-agent:children]
-neutron-agents
-[ironic-neutron-agent:children]
-neutron-agents
-[neutron-openvswitch-agent:children]
-neutron-agents
-[neutron-linuxbridge-agent:children]
-neutron-agents
-[neutron-sriov-agent:children]
-neutron-agents
-[neutron-mlnx-agent:children]
-neutron-agents
-[neutron-eswitchd:children]
-neutron-agents
-[neutron-ovn-agent:children]
-neutron-agents
+network
+
+[openvswitch:children]
+network
+compute
+manila-share
 
 [cinder:children]
 control
-[cinder-api:children]
-cinder
-[cinder-scheduler:children]
-cinder
-[cinder-volume:children]
-compute
-[cinder-backup:children]
-cinder
+
+[cloudkitty:children]
+control
 
 [memcached:children]
 control
+
 [horizon:children]
 control
+
+[swift:children]
+control
+
+[barbican:children]
+control
+
 [heat:children]
 control
+
+[ironic:children]
+control
+
+[magnum:children]
+control
+
+[mistral:children]
+control
+
+[manila:children]
+control
+
+[ceilometer:children]
+control
+
+[aodh:children]
+control
+
+[cyborg:children]
+control
+
+[gnocchi:children]
+control
+
+[tacker:children]
+control
+
+[trove:children]
+control
+
+[watcher:children]
+control
+
+[octavia:children]
+control
+
+[designate:children]
+control
+
+[placement:children]
+control
+
+[bifrost:children]
+deployment
+
+[zun:children]
+control
+
+[skyline:children]
+control
+
+[redis:children]
+control
+
+[blazar:children]
+control
+
+[venus:children]
+monitoring
+
+[letsencrypt:children]
+loadbalancer
+
+[cron:children]
+common
+
+[fluentd:children]
+common
+
+[kolla-logs:children]
+common
+
+[kolla-toolbox:children]
+common
+
+[opensearch:children]
+control
+
+[opensearch-dashboards:children]
+opensearch
+
+[glance-api:children]
+glance
+
+[nova-api:children]
+nova
+
+[nova-conductor:children]
+nova
+
+[nova-super-conductor:children]
+nova
+
+[nova-novncproxy:children]
+nova
+
+[nova-scheduler:children]
+nova
+
+[nova-spicehtml5proxy:children]
+nova
+
+[nova-compute-ironic:children]
+nova
+
+[nova-serialproxy:children]
+nova
+
+[neutron-server:children]
+control
+
+[neutron-dhcp-agent:children]
+neutron
+
+[neutron-l3-agent:children]
+neutron
+
+[neutron-metadata-agent:children]
+neutron
+
+[neutron-ovn-metadata-agent:children]
+compute
+network
+
+[neutron-bgp-dragent:children]
+neutron
+
+[neutron-infoblox-ipam-agent:children]
+neutron
+
+[neutron-metering-agent:children]
+neutron
+
+[ironic-neutron-agent:children]
+neutron
+
+[neutron-ovn-agent:children]
+compute
+network
+
+[cinder-api:children]
+cinder
+
+[cinder-backup:children]
+storage
+
+[cinder-scheduler:children]
+cinder
+
+[cinder-volume:children]
+storage
+
+[cloudkitty-api:children]
+cloudkitty
+
+[cloudkitty-processor:children]
+cloudkitty
+
+[iscsid:children]
+compute
+storage
+ironic
+
+[tgtd:children]
+storage
+
+[manila-api:children]
+manila
+
+[manila-scheduler:children]
+manila
+
+[manila-share:children]
+network
+
+[manila-data:children]
+manila
+
+[swift-proxy-server:children]
+swift
+
+[swift-account-server:children]
+storage
+
+[swift-container-server:children]
+storage
+
+[swift-object-server:children]
+storage
+
+[barbican-api:children]
+barbican
+
+[barbican-keystone-listener:children]
+barbican
+
+[barbican-worker:children]
+barbican
+
 [heat-api:children]
 heat
+
 [heat-api-cfn:children]
 heat
+
 [heat-engine:children]
 heat
 
-[loadbalancer:children]
+[ironic-api:children]
+ironic
+
+[ironic-conductor:children]
+ironic
+
+[ironic-inspector:children]
+ironic
+
+[ironic-tftp:children]
+ironic
+
+[ironic-http:children]
+ironic
+
+[magnum-api:children]
+magnum
+
+[magnum-conductor:children]
+magnum
+
+[mistral-api:children]
+mistral
+
+[mistral-executor:children]
+mistral
+
+[mistral-engine:children]
+mistral
+
+[mistral-event-engine:children]
+mistral
+
+[ceilometer-central:children]
+ceilometer
+
+[ceilometer-notification:children]
+ceilometer
+
+[ceilometer-compute:children]
+compute
+
+[ceilometer-ipmi:children]
+compute
+
+[aodh-api:children]
+aodh
+
+[aodh-evaluator:children]
+aodh
+
+[aodh-listener:children]
+aodh
+
+[aodh-notifier:children]
+aodh
+
+[cyborg-api:children]
+cyborg
+
+[cyborg-agent:children]
+compute
+
+[cyborg-conductor:children]
+cyborg
+
+[gnocchi-api:children]
+gnocchi
+
+[gnocchi-statsd:children]
+gnocchi
+
+[gnocchi-metricd:children]
+gnocchi
+
+[trove-api:children]
+trove
+
+[trove-conductor:children]
+trove
+
+[trove-taskmanager:children]
+trove
+
+[multipathd:children]
+compute
+storage
+
+[watcher-api:children]
+watcher
+
+[watcher-engine:children]
+watcher
+
+[watcher-applier:children]
+watcher
+
+[octavia-api:children]
+octavia
+
+[octavia-driver-agent:children]
+octavia
+
+[octavia-health-manager:children]
+octavia
+
+[octavia-housekeeping:children]
+octavia
+
+[octavia-worker:children]
+octavia
+
+[designate-api:children]
+designate
+
+[designate-central:children]
+designate
+
+[designate-producer:children]
+designate
+
+[designate-mdns:children]
+network
+
+[designate-worker:children]
+designate
+
+[designate-sink:children]
+designate
+
+[designate-backend-bind9:children]
+designate
+
+[placement-api:children]
+placement
+
+[zun-api:children]
+zun
+
+[zun-wsproxy:children]
+zun
+
+[zun-compute:children]
+compute
+
+[zun-cni-daemon:children]
+compute
+
+[skyline-apiserver:children]
+skyline
+
+[skyline-console:children]
+skyline
+
+[tacker-server:children]
+tacker
+
+[tacker-conductor:children]
+tacker
+
+[blazar-api:children]
+blazar
+
+[blazar-manager:children]
+blazar
+
+[prometheus-node-exporter:children]
+monitoring
 control
-[haproxy:children]
-loadbalancer
+compute
+network
+storage
+
+[prometheus-mysqld-exporter:children]
+mariadb
+
+[prometheus-memcached-exporter:children]
+memcached
+
+[prometheus-cadvisor:children]
+monitoring
+control
+compute
+network
+storage
+
+[prometheus-alertmanager:children]
+monitoring
+
+[prometheus-openstack-exporter:children]
+monitoring
+
+[prometheus-elasticsearch-exporter:children]
+opensearch
+
+[prometheus-blackbox-exporter:children]
+monitoring
+
+[prometheus-libvirt-exporter:children]
+compute
+
+[masakari-api:children]
+control
+
+[masakari-engine:children]
+control
+
+[masakari-hostmonitor:children]
+control
+
+[masakari-instancemonitor:children]
+compute
+
+[ovn-controller:children]
+ovn-controller-compute
+ovn-controller-network
+
+[ovn-controller-compute:children]
+compute
+
+[ovn-controller-network:children]
+network
+
+[ovn-database:children]
+control
+
+[ovn-northd:children]
+ovn-database
+
+[ovn-nb-db:children]
+ovn-database
+
+[ovn-sb-db:children]
+ovn-database
+
+[venus-api:children]
+venus
+
+[venus-manager:children]
+venus
+
+[letsencrypt-webserver:children]
+letsencrypt
+
+[letsencrypt-lego:children]
+letsencrypt
 EOF
 log_success "상세 인벤토리 생성 완료"
 
@@ -184,21 +644,32 @@ log_success "상세 인벤토리 생성 완료"
 log_info "globals.yml 설정 업데이트 중..."
 sudo sed -i "s/^kolla_internal_vip_address:.*/kolla_internal_vip_address: \"${VIP_IP}\"/" "${KOLLA_CONFIG_DIR}/globals.yml"
 sudo sed -i "s/^enable_haproxy:.*/enable_haproxy: \"yes\"/" "${KOLLA_CONFIG_DIR}/globals.yml"
+sudo sed -i "s/^enable_tgtd:.*/enable_tgtd: \"yes\"/" "${KOLLA_CONFIG_DIR}/globals.yml" || echo 'enable_tgtd: "yes"' | sudo tee -a "${KOLLA_CONFIG_DIR}/globals.yml"
 
-if grep -q "enable_openvswitch" "${KOLLA_CONFIG_DIR}/globals.yml"; then
-    sudo sed -i 's/^#*enable_openvswitch:.*/enable_openvswitch: "no"/' "${KOLLA_CONFIG_DIR}/globals.yml"
-else
-    echo 'enable_openvswitch: "no"' | sudo tee -a "${KOLLA_CONFIG_DIR}/globals.yml"
-fi
+# OVS가 비활성화되면 컴퓨트 노드 네트워크가 안 될 수 있으므로 주석 처리 또는 yes 유지
+# if grep -q "enable_openvswitch" "${KOLLA_CONFIG_DIR}/globals.yml"; then
+#     sudo sed -i 's/^#*enable_openvswitch:.*/enable_openvswitch: "no"/' "${KOLLA_CONFIG_DIR}/globals.yml"
+# else
+#     echo 'enable_openvswitch: "no"' | sudo tee -a "${KOLLA_CONFIG_DIR}/globals.yml"
+# fi
 
 # ── 6. Compute 노드 배포 ──────────────────────────────────────────────────
 log_info "Compute 노드 배포 시작..."
 
-log_info "Step [1/2]: bootstrap-servers 실행..."
-kolla-ansible bootstrap-servers -i "${SCRIPT_DIR}/multinode" --limit compute
+# 호스트 iscsid 충돌 방지 (컴퓨트 노드 대상)
+log_info "호스트 iscsid 서비스 충돌 방지 조치 중..."
+ssh -o StrictHostKeyChecking=no "${USER_NAME}@${COMPUTE_IP}" "sudo systemctl stop iscsid iscsid.socket || true; sudo systemctl disable iscsid iscsid.socket || true; sudo docker rm -f iscsid || true"
 
-log_info "Step [2/2]: deploy 실행 (Control과 Compute 연동 작업을 수행합니다)..."
-kolla-ansible deploy -i "${SCRIPT_DIR}/multinode" --limit control,compute
+log_info "Step [1/2]: bootstrap-servers 실행..."
+kolla-ansible bootstrap-servers -i "${SCRIPT_DIR}/multinode" --limit control,compute
+
+log_info "Step [2/2]: deploy 실행 (변수 강제 주입 및 태스크 강제 실행)..."
+kolla-ansible deploy -i "${SCRIPT_DIR}/multinode" \
+  -e "enable_iscsid=yes" \
+  -e "enable_tgtd=yes" \
+  -e "enable_cinder_backend_lvm=yes" \
+  --limit control,compute,iscsid,tgtd,storage,network \
+  --tags common,iscsi,tgtd,cinder,nova,neutron,ovn
 
 log_success "Compute node deployment complete. Log: $LOG_FILE"
 

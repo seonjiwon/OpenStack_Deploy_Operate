@@ -22,9 +22,8 @@ neutron_external_interface: "eth1"
 enable_haproxy: "no"
 
 # --- Nova (Compute) ---------------------------------------------------------
-# kvm으로 두면 01_deploy_aio.sh가 /proc/cpuinfo에 vmx/svm 없을 때 자동 qemu 폴백.
-# (gpedit로 VBS 끄면 KVM 가능 → kvm 유지 / 안 되면 자동 qemu)
-nova_compute_virt_type: "kvm"
+# 이 호스트는 VBS 잠금으로 중첩 가상화(KVM) 불가 → qemu 소프트웨어 에뮬레이션 확정
+nova_compute_virt_type: "qemu"
 
 # Compute 노드 추가를 위한 SSH 활성화
 enable_nova_ssh: "yes"

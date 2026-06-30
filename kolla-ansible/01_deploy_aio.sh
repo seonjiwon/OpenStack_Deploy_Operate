@@ -78,6 +78,7 @@ apt-get install -y -qq \
   python3-dev python3-pip python3-venv python3-full \
   libffi-dev gcc libssl-dev \
   pkg-config libdbus-1-dev libglib2.0-dev cmake build-essential \
+  python3-openstackclient \
   git curl wget vim net-tools
 
 # -- 2-1. Resolve MariaDB/Database conflicts ---------------------------------

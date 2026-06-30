@@ -7,7 +7,7 @@
 
 # --- Basic Settings ----------------------------------------------------------
 kolla_base_distro: "ubuntu"
-openstack_release: "2024.2"
+openstack_release: "2025.1"   # 2024.2(Dalmatian) EOL → 2025.1(Epoxy)
 kolla_internal_vip_address: "192.168.0.84"   # 단일노드: 노드 IP 직결 (haproxy off)
 
 # --- Network Interfaces -----------------------------------------------------

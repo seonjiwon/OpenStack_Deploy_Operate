@@ -38,8 +38,8 @@ echo "-----------------------------------------------------------------------"
 # ── 설정값 ────────────────────────────────────────────────────────────────────
 NODE_IP="192.168.0.84"
 NETWORK_IFACE="eth0"
-KOLLA_VERSION="19.7.0"           # OpenStack 2024.2 (Dalmatian) - Latest stable
-OPENSTACK_RELEASE="2024.2"
+KOLLA_VERSION="20"               # OpenStack 2025.1 (Epoxy) — 2024.2 EOL(브랜치 삭제)
+OPENSTACK_RELEASE="2025.1"
 VENV_DIR="/opt/kolla-venv"
 KOLLA_CONFIG_DIR="/etc/kolla"
 
@@ -77,6 +77,7 @@ apt-get upgrade -y -qq
 apt-get install -y -qq \
   python3-dev python3-pip python3-venv python3-full \
   libffi-dev gcc libssl-dev \
+  pkg-config libdbus-1-dev libglib2.0-dev cmake build-essential \
   git curl wget vim net-tools
 
 # -- 2-1. Resolve MariaDB/Database conflicts ---------------------------------
@@ -133,7 +134,7 @@ source "$VENV_DIR/bin/activate"
 
 pip install -q --upgrade pip
 pip install -q "ansible-core>=2.16,<2.18"
-pip install -q "kolla-ansible==${KOLLA_VERSION}"
+pip install -q "kolla-ansible>=20.0.0,<21.0.0"   # 2025.1 (Epoxy)
 pip install -q "docker>=7.1.0"
 pip install -q "dbus-python"       # prechecks dbus-python 에러 해결용
 pip install -q "PyYAML"            # 구성 파싱 의존성

@@ -8,7 +8,7 @@
 # 소요 시간: 약 30~60분 (이미지 다운로드 포함)
 #
 # 전제조건:
-#   - Ubuntu 22.04 LTS
+#   - Ubuntu 24.04 LTS
 #   - 최소 32GB RAM, 8 Core, 100GB Disk
 #   - 인터넷 연결
 #   - root 또는 sudo 권한
@@ -47,10 +47,10 @@ KOLLA_CONFIG_DIR="/etc/kolla"
 # ── 1. OS 확인 ────────────────────────────────────────────────────────────────
 log_info "OS 버전 확인..."
 source /etc/os-release
-if [[ "$ID" != "ubuntu" || "$VERSION_ID" != "22.04" ]]; then
-  log_error "Ubuntu 22.04 전용 스크립트입니다. (현재: ${PRETTY_NAME})"
+if [[ "$ID" != "ubuntu" || "$VERSION_ID" != "24.04" ]]; then
+  log_error "Ubuntu 24.04 전용 스크립트입니다. (현재: ${PRETTY_NAME})"
 fi
-log_success "Ubuntu 22.04 확인"
+log_success "Ubuntu 24.04 확인"
 
 # ── 1-1. 환경 정밀 청소 (Deep Purge) ──────────────────────────────────────────
 log_info "기존 컨테이너 및 VIP 정밀 청소 중..."

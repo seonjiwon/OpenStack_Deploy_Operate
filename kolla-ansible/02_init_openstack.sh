@@ -20,11 +20,11 @@
 set -e
 
 # ── 설정값 (필수 확인) ────────────────────────────────────────────────────────
-NODE_IP="172.21.33.67"
-EXTERNAL_NETWORK_CIDR="172.21.33.0/24"
-EXTERNAL_GATEWAY="172.21.33.254"
-FLOATING_IP_START="172.21.33.200"
-FLOATING_IP_END="172.21.33.250"
+NODE_IP="192.168.0.84"
+EXTERNAL_NETWORK_CIDR="10.0.7.0/24"
+EXTERNAL_GATEWAY="10.0.7.1"        # = Hyper-V 호스트 vEthernet(os-ext) IP
+FLOATING_IP_START="10.0.7.200"
+FLOATING_IP_END="10.0.7.250"
 
 log_info()    { echo -e "[\e[34mINFO\e[0m]  $1"; }
 log_success() { echo -e "[\e[32mOK\e[0m]    $1"; }
@@ -124,5 +124,40 @@ SG_ID=$(openstack security group list --project "$ADMIN_ID" -f value -c ID | hea
 openstack security group rule create --proto icmp "$SG_ID" 2>/dev/null || true
 openstack security group rule create --proto tcp --dst-port 22 "$SG_ID" 2>/dev/null || true
 log_success "보안 규칙 추가 완료"
+
+# ── 6. Cinder image_volume_cache (convert→clone, qemu 환경 속도 보완) ──────────
+# 같은 이미지로 반복 생성 시 raw 변환(convert)을 캐시 clone으로 대체 → 첫 생성 후 대폭 단축.
+# image_volume_cache는 internal tenant(프로젝트/유저)를 요구하므로 생성 후 reconfigure.
+log_info "Cinder image_volume_cache 설정 중..."
+{
+    AIO_INVENTORY="/opt/kolla-venv/share/kolla-ansible/ansible/inventory/all-in-one"
+    CINDER_PW=$(openssl rand -hex 16)
+
+    openstack project show cinder-internal &>/dev/null || \
+        openstack project create --domain default --description "Cinder internal tenant" cinder-internal
+    openstack user show cinder-internal &>/dev/null || \
+        openstack user create --domain default --project cinder-internal --password "$CINDER_PW" cinder-internal
+
+    CI_PID=$(openstack project show cinder-internal -f value -c id)
+    CI_UID=$(openstack user show cinder-internal -f value -c id)
+
+    sudo mkdir -p /etc/kolla/config/cinder
+    sudo tee /etc/kolla/config/cinder/cinder-volume.conf >/dev/null <<EOF
+[DEFAULT]
+cinder_internal_tenant_project_id = ${CI_PID}
+cinder_internal_tenant_user_id = ${CI_UID}
+
+[lvm-1]
+image_volume_cache_enabled = True
+EOF
+
+    if [ -f "$AIO_INVENTORY" ]; then
+        log_info "  kolla-ansible reconfigure (cinder) — 수 분 소요..."
+        kolla-ansible reconfigure -i "$AIO_INVENTORY" --tags cinder
+        log_success "  image_volume_cache 적용 완료"
+    else
+        log_warn "  AIO inventory 없음($AIO_INVENTORY) → override만 생성. 수동 reconfigure 필요."
+    fi
+} || log_warn "image_volume_cache 설정 일부 실패(비치명적) — 나중에 수동 적용 가능."
 
 log_success "OpenStack initialization complete."

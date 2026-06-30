@@ -36,8 +36,8 @@ log_info "Logging to 'deploy.log' and terminal simultaneously."
 echo "-----------------------------------------------------------------------"
 
 # ── 설정값 ────────────────────────────────────────────────────────────────────
-NODE_IP="172.21.33.67"
-NETWORK_IFACE="enp5s0f1"
+NODE_IP="192.168.0.84"
+NETWORK_IFACE="eth0"
 KOLLA_VERSION="19.7.0"           # OpenStack 2024.2 (Dalmatian) - Latest stable
 OPENSTACK_RELEASE="2024.2"
 VENV_DIR="/opt/kolla-venv"
@@ -110,39 +110,17 @@ apt-get autoremove -y -qq
 rm -rf /var/run/libvirt/ || true
 log_success "시스템 패키지 준비 완료"
 
-# ── 3. 디스크 설정 ───────────────────────────────────────────────────────────
-# nvme0n1p1 (100GB) -> /var/lib/docker
-# nvme0n1p2 + sdb -> cinder-volumes VG (총 ~3.5TB)
-log_info "디스크 파티셔닝 및 LVM 설정 시작..."
+# ── 3. 디스크 설정 (단일노드 VM) ──────────────────────────────────────────────
+# sda(100G) = OS, sdb(60G, 빈 디스크) -> cinder-volumes VG
+log_info "Cinder LVM 설정 시작..."
 apt-get install -y -qq lvm2 xfsprogs parted
 
-NVME_DISK="/dev/nvme0n1"
-NVME_P1="${NVME_DISK}p1"
-NVME_P2="${NVME_DISK}p2"
 CINDER_DISK="/dev/sdb"
 
-if ! lsblk "$NVME_P1" &>/dev/null; then
-    log_info "  nvme0n1 파티셔닝 중 (p1: 100GB, p2: 나머지)..."
-    parted -s "$NVME_DISK" mklabel gpt
-    parted -s "$NVME_DISK" mkpart primary xfs 0% 100GiB
-    parted -s "$NVME_DISK" mkpart primary 100GiB 100%
-    partprobe "$NVME_DISK"
-    sleep 2
-fi
-
-if ! grep -q "$NVME_P1" /proc/mounts 2>/dev/null; then
-    log_info "  $NVME_P1 -> /var/lib/docker 마운트 중..."
-    mkfs.xfs -f "$NVME_P1" || true
-    mkdir -p /var/lib/docker
-    mount "$NVME_P1" /var/lib/docker
-    UUID=$(blkid -s UUID -o value "$NVME_P1")
-    grep -q "$UUID" /etc/fstab || echo "UUID=$UUID /var/lib/docker xfs defaults 0 2" >> /etc/fstab
-fi
-
 if ! vgs cinder-volumes &>/dev/null; then
-    log_info "  Cinder LVM 볼륨 그룹(cinder-volumes) 생성 중..."
-    pvcreate -f "$NVME_P2" "$CINDER_DISK" || true
-    vgcreate cinder-volumes "$NVME_P2" "$CINDER_DISK"
+    log_info "  Cinder LVM 볼륨 그룹(cinder-volumes) 생성 (${CINDER_DISK})..."
+    pvcreate -f "$CINDER_DISK"
+    vgcreate cinder-volumes "$CINDER_DISK"
 fi
 
 log_success "디스크 및 스토리지 설정 완료"
@@ -243,6 +221,33 @@ kolla-ansible bootstrap-servers -i "$AIO_INVENTORY" \
   --ask-become-pass 2>/dev/null || \
 kolla-ansible bootstrap-servers -i "$AIO_INVENTORY"
 log_success "bootstrap-servers 완료"
+
+# ── 8-1. Docker 로그 로테이션 + 기본 ulimit (운영 안정화) ──────────────────────
+# bootstrap-servers가 만든 daemon.json에 "보존 병합" (bridge/iptables/ip-forward 유지)
+#  - log-opts   : 로그 폭증으로 디스크 100% 되는 사고 방지
+#  - default-ulimits(nofile): Horizon fd 누수로 인한 fd 고갈(500 에러) 대비
+log_info "Docker 로그 로테이션 + ulimit 적용..."
+python3 - <<'PY'
+import json, os
+p = "/etc/docker/daemon.json"
+d = json.load(open(p)) if os.path.exists(p) else {}
+d.setdefault("log-opts", {}).update({"max-file": "5", "max-size": "50m"})
+d["default-ulimits"] = {"nofile": {"Name": "nofile", "Hard": 65536, "Soft": 65536}}
+json.dump(d, open(p, "w"), indent=4)
+print("daemon.json updated:", json.dumps(d))
+PY
+systemctl restart docker
+sleep 3
+log_success "  Docker 로그/ulimit 설정 완료"
+
+# ── 8-2. nova 동시 빌드 제한 (qemu + 단일 디스크 I/O 보호) ─────────────────────
+log_info "nova max_concurrent_builds=1 override 생성..."
+mkdir -p "${KOLLA_CONFIG_DIR}/config/nova"
+cat > "${KOLLA_CONFIG_DIR}/config/nova/nova-compute.conf" <<'EOF'
+[DEFAULT]
+max_concurrent_builds = 1
+EOF
+log_success "  nova override 생성 완료"
 
 # ── 9. 사전 점검 ──────────────────────────────────────────────────────────────
 log_info "kolla prechecks 실행..."

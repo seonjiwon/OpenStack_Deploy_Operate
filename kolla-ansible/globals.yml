@@ -2,30 +2,28 @@
 # =============================================================================
 # kolla-ansible globals.yml
 # OpenStack 2024.2 (Dalmatian) on Ubuntu 22.04
-# Control Node: 172.21.33.67
+# 단일노드 AIO (Hyper-V VM) — eth0 관리 / eth1 외부 / qemu
 # =============================================================================
 
 # --- Basic Settings ----------------------------------------------------------
 kolla_base_distro: "ubuntu"
 openstack_release: "2024.2"
-kolla_internal_vip_address: "172.21.33.100"   # OpenStack API 및 대시보드 접근용 VIP
+kolla_internal_vip_address: "192.168.0.84"   # 단일노드: 노드 IP 직결 (haproxy off)
 
 # --- Network Interfaces -----------------------------------------------------
-# 관리/API 네트워크 (사용자가 수동 설정한 br-ex 사용)
-network_interface: "br-ex"
+# 관리/API 네트워크 (단일노드 VM: eth0 = os-mgmt)
+network_interface: "eth0"
 
-# Neutron 외부 (Provider/FIP) 네트워크 인터페이스
-# 호스트 Netplan에서 br-ex를 OVS 타입으로 생성했으므로, 다시 물리 포트명을 지정합니다.
-neutron_external_interface: "{{ 'enp5s0f1' if inventory_hostname == '172.21.33.67' else 'enp6s0f0' }}"
+# Neutron 외부 (Provider/FIP) 네트워크 인터페이스 (단일노드 VM: eth1 = os-ext)
+neutron_external_interface: "eth1"
 
 # ── HAProxy / Keepalived ───────────────────────────────────────────────────────
-# OpenStack VIP(100)를 관리하고 부여하기 위해 HAProxy/Keepalived 활성화
-enable_haproxy: "yes"
+# 단일노드 AIO: haproxy/keepalived 비활성화 → API를 노드 IP에 직접 바인딩
+enable_haproxy: "no"
 
 # --- Nova (Compute) ---------------------------------------------------------
-# KVM 하드웨어 가속 지원 시 kvm, 없으면 qemu
-# 확인: kvm-ok 명령어로 판별
-nova_compute_virt_type: "kvm"
+# 중첩 가상화(KVM) 불가 환경 → qemu 소프트웨어 에뮬레이션
+nova_compute_virt_type: "qemu"
 
 # Compute 노드 추가를 위한 SSH 활성화
 enable_nova_ssh: "yes"
@@ -36,14 +34,14 @@ neutron_global_physnet_mtu: 1500
 
 # --- Service Enablement ------------------------------------------------------
 enable_glance: "yes"       # 이미지 서비스
-enable_heat: "yes"         # 오케스트레이션
+enable_heat: "no"          # 오케스트레이션 (20GB 메모리 절약 위해 비활성화)
 enable_horizon: "yes"      # 웹 대시보드
 enable_nova: "yes"         # 컴퓨트
 enable_neutron: "yes"      # 네트워킹
-enable_cinder: "yes"       # 블록 스토리지 (sdb 2.7TB LVM 사용)
+enable_cinder: "yes"       # 블록 스토리지 (sdb LVM 사용)
 
 # --- Cinder LVM Settings -----------------------------------------------------
-# 01_deploy_aio.sh에서 sdb에 LVM VG 'cinder-volumes' 자동 생성
+# 01_deploy_aio.sh에서 sdb(60G)에 LVM VG 'cinder-volumes' 자동 생성
 enable_cinder_backend_lvm: "yes"
 enable_iscsid: "yes"
 cinder_volume_group: "cinder-volumes"
